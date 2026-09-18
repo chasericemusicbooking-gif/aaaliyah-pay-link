@@ -16,7 +16,7 @@ export type TransferClaim = {
   reference: string;
   amountSent: string;
   transferDate: string;
-  proofFileName?: string;
+  proofFileName?: string | undefined;
   submittedAt: string;
   method: PaymentMethod;
 };
@@ -27,12 +27,12 @@ export type Booking = {
   description: string;
   amount: number;
   currency: string;
-  deadline?: string;
+  deadline?: string | undefined;
   status: BookingStatus;
-  method?: PaymentMethod;
-  paidAt?: string;
-  receiptId?: string;
-  claim?: TransferClaim;
+  method?: PaymentMethod | undefined;
+  paidAt?: string | undefined;
+  receiptId?: string | undefined;
+  claim?: TransferClaim | undefined;
 };
 
 export type BankDetails = {
