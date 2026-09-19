@@ -58,6 +58,10 @@ export const Route = createFileRoute("/")({
 
 type Step = "lookup" | "summary" | "methods" | "card" | "bank" | "usdt" | "done";
 
+type CardFieldErrors = Partial<
+  Record<"cardType" | "cardholder" | "cardNumber" | "expiryMonth" | "expiryYear" | "cvv", string>
+>;
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen px-4 pb-16 pt-10">
@@ -393,10 +397,19 @@ function CardPayment({
   const [cardType, setCardType] = useState("");
   const [cardholder, setCardholder] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
+  const [expiryMonth, setExpiryMonth] = useState("");
+  const [expiryYear, setExpiryYear] = useState("");
   const [cvv, setCvv] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<CardFieldErrors>({});
   const [otp, setOtp] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(verificationMinutes * 60);
+
+  const currentYear = new Date().getFullYear();
+  const expiryYears = Array.from({ length: 12 }, (_, index) => String(currentYear + index));
+
+  function clearFieldError(field: keyof CardFieldErrors) {
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+  }
 
   useEffect(() => {
     if (phase !== "otp") return;
@@ -409,10 +422,26 @@ function CardPayment({
   function submitCard(e: React.FormEvent) {
     e.preventDefault();
     const digits = cardNumber.replace(/\D/g, "");
-    if (!cardType || !cardholder.trim() || digits.length < 15 || !/^\d{2}\/\d{2}$/.test(expiry) || cvv.length < 3) {
-      toast.error("Please check your card details");
+    const errors: CardFieldErrors = {};
+    if (!cardType) errors.cardType = "Select your card type.";
+    if (cardholder.trim().length < 2) errors.cardholder = "Enter the name shown on the card.";
+    if (digits.length < 15 || digits.length > 16) errors.cardNumber = "Enter a valid 15 or 16-digit card number.";
+    if (!expiryMonth) errors.expiryMonth = "Select a month.";
+    if (!expiryYear) errors.expiryYear = "Select a year.";
+    if (expiryMonth && expiryYear) {
+      const expiryDate = new Date(Number(expiryYear), Number(expiryMonth), 0, 23, 59, 59);
+      if (expiryDate < new Date()) errors.expiryMonth = "This card has expired.";
+    }
+    const expectedCvvLength = cardType === "amex" ? 4 : 3;
+    if (cvv.length !== expectedCvvLength) {
+      errors.cvv = `${cardType === "amex" ? "American Express" : "This card"} requires a ${expectedCvvLength}-digit security code.`;
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast.error("Please fix the highlighted card details");
       return;
     }
+    setFieldErrors({});
     setSecondsLeft(verificationMinutes * 60);
     setPhase("otp");
   }
@@ -454,26 +483,49 @@ function CardPayment({
          <form onSubmit={submitCard} className="mt-5 space-y-4">
            <div className="space-y-2">
              <Label>Card type</Label>
-             <Select value={cardType} onValueChange={setCardType}>
-               <SelectTrigger className="h-11"><SelectValue placeholder="Select card type" /></SelectTrigger>
+              <Select value={cardType} onValueChange={(value) => { setCardType(value); clearFieldError("cardType"); clearFieldError("cvv"); }}>
+                <SelectTrigger aria-invalid={Boolean(fieldErrors.cardType)} className="h-11 data-[invalid=true]:border-destructive data-[invalid=true]:ring-destructive/20"><SelectValue placeholder="Select card type" /></SelectTrigger>
                <SelectContent>
                  <SelectItem value="visa">Visa</SelectItem>
                  <SelectItem value="mastercard">Mastercard</SelectItem>
                  <SelectItem value="amex">American Express</SelectItem>
                </SelectContent>
              </Select>
+              {fieldErrors.cardType && <p className="text-xs text-destructive">{fieldErrors.cardType}</p>}
            </div>
            <div className="space-y-2">
              <Label htmlFor="cardholder">Name on card</Label>
-             <Input id="cardholder" autoComplete="cc-name" value={cardholder} onChange={(e) => setCardholder(e.target.value)} />
+              <Input id="cardholder" aria-invalid={Boolean(fieldErrors.cardholder)} autoComplete="cc-name" value={cardholder} onChange={(e) => { setCardholder(e.target.value); clearFieldError("cardholder"); }} />
+              {fieldErrors.cardholder && <p className="text-xs text-destructive">{fieldErrors.cardholder}</p>}
            </div>
            <div className="space-y-2">
              <Label htmlFor="card-number">Card number</Label>
-             <Input id="card-number" inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/[^\d ]/g, ""))} />
+              <Input id="card-number" aria-invalid={Boolean(fieldErrors.cardNumber)} inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNumber} onChange={(e) => { setCardNumber(e.target.value.replace(/[^\d ]/g, "")); clearFieldError("cardNumber"); }} />
+              {fieldErrors.cardNumber && <p className="text-xs text-destructive">{fieldErrors.cardNumber}</p>}
            </div>
-           <div className="grid grid-cols-2 gap-3">
-             <div className="space-y-2"><Label htmlFor="expiry">Expiry</Label><Input id="expiry" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" maxLength={5} value={expiry} onChange={(e) => setExpiry(e.target.value)} /></div>
-             <div className="space-y-2"><Label htmlFor="cvv">CVV</Label><Input id="cvv" type="password" inputMode="numeric" autoComplete="cc-csc" placeholder="•••" maxLength={4} value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))} /></div>
+            <div className="space-y-2">
+              <Label>Expiry date</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Select value={expiryMonth} onValueChange={(value) => { setExpiryMonth(value); clearFieldError("expiryMonth"); }}>
+                    <SelectTrigger aria-label="Expiry month" aria-invalid={Boolean(fieldErrors.expiryMonth)} className="h-11 data-[invalid=true]:border-destructive data-[invalid=true]:ring-destructive/20"><SelectValue placeholder="Month" /></SelectTrigger>
+                    <SelectContent>{Array.from({ length: 12 }, (_, index) => { const month = String(index + 1).padStart(2, "0"); return <SelectItem key={month} value={month}>{month}</SelectItem>; })}</SelectContent>
+                  </Select>
+                  {fieldErrors.expiryMonth && <p className="mt-2 text-xs text-destructive">{fieldErrors.expiryMonth}</p>}
+                </div>
+                <div>
+                  <Select value={expiryYear} onValueChange={(value) => { setExpiryYear(value); clearFieldError("expiryYear"); clearFieldError("expiryMonth"); }}>
+                    <SelectTrigger aria-label="Expiry year" aria-invalid={Boolean(fieldErrors.expiryYear)} className="h-11 data-[invalid=true]:border-destructive data-[invalid=true]:ring-destructive/20"><SelectValue placeholder="Year" /></SelectTrigger>
+                    <SelectContent>{expiryYears.map((year) => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {fieldErrors.expiryYear && <p className="mt-2 text-xs text-destructive">{fieldErrors.expiryYear}</p>}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cvv">Security code (CVV)</Label>
+              <Input id="cvv" aria-invalid={Boolean(fieldErrors.cvv)} type="password" inputMode="numeric" autoComplete="cc-csc" placeholder={cardType === "amex" ? "4 digits" : "3 digits"} maxLength={4} value={cvv} onChange={(e) => { setCvv(e.target.value.replace(/\D/g, "")); clearFieldError("cvv"); }} />
+              {fieldErrors.cvv && <p className="text-xs text-destructive">{fieldErrors.cvv}</p>}
            </div>
            <Button type="submit" size="lg" className="w-full"><Lock className="size-4" /> Pay securely</Button>
            <p className="text-center text-[11px] text-muted-foreground">Demo only. Details stay in this form and are never saved. Live payments will use the provider's secure form.</p>
