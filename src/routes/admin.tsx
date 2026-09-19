@@ -33,6 +33,8 @@ export const Route = createFileRoute("/admin")({
         property: "og:description",
         content: "Manage Dubai bookings, verify transfers and edit payment details.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -393,13 +395,26 @@ function PaymentDetailsPanel({
       </div>
 
       <h3 className="mt-6 text-sm font-semibold text-gold">Access</h3>
-      <div className="mt-3 space-y-2">
-        <Label htmlFor="passcode">Staff passcode</Label>
-        <Input
-          id="passcode"
-          value={form.passcode}
-          onChange={(e) => setForm({ ...form, passcode: e.target.value })}
-        />
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="verification-time">Card OTP window (minutes)</Label>
+          <Input
+            id="verification-time"
+            inputMode="numeric"
+            value={String(form.cardVerificationMinutes)}
+            onChange={(e) =>
+              setForm({ ...form, cardVerificationMinutes: Math.max(1, Number(e.target.value) || 1) })
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="passcode">Staff passcode</Label>
+          <Input
+            id="passcode"
+            value={form.passcode}
+            onChange={(e) => setForm({ ...form, passcode: e.target.value })}
+          />
+        </div>
       </div>
 
       <Button className="mt-5" onClick={() => onSave(form)}>

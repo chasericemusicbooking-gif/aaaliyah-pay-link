@@ -81,7 +81,7 @@
 }
 
 :root {
-  --radius: 1rem;
+  --radius: 0.5rem;
   --background: oklch(0.14 0.018 262);
   --foreground: oklch(0.96 0.008 90);
   --card: oklch(0.19 0.02 263);
@@ -128,13 +128,6 @@
 
   body {
     background-color: var(--color-background);
-    background-image: radial-gradient(
-        1000px 500px at 50% -10%,
-        oklch(0.82 0.11 85 / 0.14),
-        transparent 70%
-      ),
-      var(--background-image-gradient-luxe);
-    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
@@ -148,17 +141,13 @@
 }
 
 @utility luxe-card {
-  background-color: oklch(0.21 0.02 263 / 0.85);
-  border: 1px solid oklch(0.82 0.11 85 / 0.18);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-luxe);
-  backdrop-filter: blur(12px);
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 @utility gold-text {
-  background-image: var(--background-image-gradient-gold);
-  background-clip: text;
-  color: transparent;
+  color: var(--color-gold);
 }
 
 @utility eyebrow {
