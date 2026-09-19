@@ -52,6 +52,7 @@ export type UsdtDetails = {
 export type Settings = {
   bank: BankDetails;
   usdt: UsdtDetails;
+  cardVerificationMinutes: number;
   passcode: string;
 };
 
@@ -103,6 +104,7 @@ export const defaultSettings: Settings = {
     walletAddress: "TQ5NMqJjW8s4gk2PbR3vYc7HdFxLm9AeUu",
     expiryMinutes: 45,
   },
+  cardVerificationMinutes: 10,
   passcode: "aaliyah2026",
 };
 
@@ -146,7 +148,13 @@ export function updateBooking(reference: string, patch: Partial<Booking>): Booki
 }
 
 export function getSettings(): Settings {
-  return { ...defaultSettings, ...read(SETTINGS_KEY, defaultSettings) };
+  const saved = read(SETTINGS_KEY, defaultSettings);
+  return {
+    ...defaultSettings,
+    ...saved,
+    bank: { ...defaultSettings.bank, ...saved.bank },
+    usdt: { ...defaultSettings.usdt, ...saved.usdt },
+  };
 }
 
 export function saveSettings(settings: Settings) {

@@ -13,6 +13,7 @@ import {
   Coins,
   Clock,
   Loader2,
+  Timer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   type Booking,
   type Settings,
@@ -46,6 +49,8 @@ export const Route = createFileRoute("/")({
         content:
           "Securely settle your Aaaliyah Booking Dubai reservation by card, bank transfer or USDT.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: CheckoutPage,
@@ -59,7 +64,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto w-full max-w-md">
         <header className="mb-8 text-center">
           <p className="eyebrow">Dubai · United Arab Emirates</p>
-          <h1 className="gold-text mt-3 text-4xl font-semibold">Aaaliyah Booking</h1>
+          <h1 className="mt-3 text-4xl font-semibold text-foreground">Aaaliyah Booking</h1>
           <p className="mt-1 text-sm text-muted-foreground">Dubai Booking Payment</p>
         </header>
         {children}
@@ -194,6 +199,7 @@ function CheckoutPage() {
       {booking && step === "card" && (
         <CardPayment
           booking={booking}
+          verificationMinutes={settings.cardVerificationMinutes}
           onBack={() => setStep("methods")}
           onPaid={(b) => {
             refresh(b);
@@ -301,10 +307,11 @@ function MethodButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
       onClick={onClick}
-      className="flex w-full items-center gap-4 rounded-2xl border border-border bg-card/60 p-4 text-left transition-colors hover:border-gold/50 hover:bg-gold/5"
+      className="h-auto w-full justify-start gap-4 rounded-lg border-border bg-card p-4 text-left hover:border-gold/50 hover:bg-secondary"
     >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
         {icon}
@@ -313,19 +320,21 @@ function MethodButton({
         <span className="block text-sm font-semibold">{title}</span>
         <span className="block text-xs text-muted-foreground">{subtitle}</span>
       </span>
-    </button>
+    </Button>
   );
 }
 
 function BackLink({ onBack }: { onBack: () => void }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       onClick={onBack}
-      className="mb-4 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-gold"
+      className="mb-4 -ml-3 text-xs text-muted-foreground hover:text-gold"
     >
       <ArrowLeft className="size-3.5" /> Back
-    </button>
+    </Button>
   );
 }
 
@@ -371,17 +380,50 @@ function Methods({
 
 function CardPayment({
   booking,
+  verificationMinutes,
   onBack,
   onPaid,
 }: {
   booking: Booking;
+  verificationMinutes: number;
   onBack: () => void;
   onPaid: (b: Booking) => void;
 }) {
-  const [processing, setProcessing] = useState(false);
+  const [phase, setPhase] = useState<"details" | "otp" | "processing">("details");
+  const [cardType, setCardType] = useState("");
+  const [cardholder, setCardholder] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [otp, setOtp] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(verificationMinutes * 60);
 
-  function startCheckout() {
-    setProcessing(true);
+  useEffect(() => {
+    if (phase !== "otp") return;
+    const id = window.setInterval(() => setSecondsLeft((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  const timer = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  function submitCard(e: React.FormEvent) {
+    e.preventDefault();
+    const digits = cardNumber.replace(/\D/g, "");
+    if (!cardType || !cardholder.trim() || digits.length < 15 || !/^\d{2}\/\d{2}$/.test(expiry) || cvv.length < 3) {
+      toast.error("Please check your card details");
+      return;
+    }
+    setSecondsLeft(verificationMinutes * 60);
+    setPhase("otp");
+  }
+
+  function verifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast.error("Enter the 6-digit code");
+      return;
+    }
+    setPhase("processing");
     // Demo only: in production this redirects to the PCI-compliant hosted
     // checkout and the booking is marked paid from the provider webhook.
     setTimeout(() => {
@@ -391,7 +433,6 @@ function CardPayment({
         paidAt: new Date().toISOString(),
         receiptId: makeReceiptId(booking.reference),
       });
-      setProcessing(false);
       if (updated) onPaid(updated);
     }, 1800);
   }
@@ -400,37 +441,64 @@ function CardPayment({
     <div className="luxe-card p-6">
       <BackLink onBack={onBack} />
       <h2 className="text-2xl">Card payment</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        You'll be taken to our payment provider's secure hosted page. Card numbers and CVV are never
-        stored by Aaaliyah Booking.
-      </p>
+       <p className="mt-1 text-sm text-muted-foreground">Secure card verification</p>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        {["VISA", "Mastercard", "AMEX", "Apple Pay", "Google Pay"].map((brand) => (
-          <span
-            key={brand}
-            className="rounded-lg border border-border bg-secondary/60 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-secondary-foreground"
-          >
-            {brand}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-gold/25 bg-gold/5 p-4 text-center">
+       <div className="mt-5 rounded-lg border border-border bg-secondary/30 p-4 text-center">
         <p className="eyebrow">Total charge</p>
         <p className="gold-text mt-1 text-3xl font-semibold">
           {formatAmount(booking.amount, booking.currency)}
         </p>
       </div>
 
-      <Button size="lg" className="mt-5 w-full" onClick={startCheckout} disabled={processing}>
-        {processing ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-        {processing ? "Contacting payment provider…" : "Continue to secure checkout"}
-      </Button>
+       {phase === "details" && (
+         <form onSubmit={submitCard} className="mt-5 space-y-4">
+           <div className="space-y-2">
+             <Label>Card type</Label>
+             <Select value={cardType} onValueChange={setCardType}>
+               <SelectTrigger className="h-11"><SelectValue placeholder="Select card type" /></SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="visa">Visa</SelectItem>
+                 <SelectItem value="mastercard">Mastercard</SelectItem>
+                 <SelectItem value="amex">American Express</SelectItem>
+               </SelectContent>
+             </Select>
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="cardholder">Name on card</Label>
+             <Input id="cardholder" autoComplete="cc-name" value={cardholder} onChange={(e) => setCardholder(e.target.value)} />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="card-number">Card number</Label>
+             <Input id="card-number" inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/[^\d ]/g, ""))} />
+           </div>
+           <div className="grid grid-cols-2 gap-3">
+             <div className="space-y-2"><Label htmlFor="expiry">Expiry</Label><Input id="expiry" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" maxLength={5} value={expiry} onChange={(e) => setExpiry(e.target.value)} /></div>
+             <div className="space-y-2"><Label htmlFor="cvv">CVV</Label><Input id="cvv" type="password" inputMode="numeric" autoComplete="cc-csc" placeholder="•••" maxLength={4} value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))} /></div>
+           </div>
+           <Button type="submit" size="lg" className="w-full"><Lock className="size-4" /> Pay securely</Button>
+           <p className="text-center text-[11px] text-muted-foreground">Demo only. Details stay in this form and are never saved. Live payments will use the provider's secure form.</p>
+         </form>
+       )}
 
-      <p className="mt-3 text-center text-[11px] text-muted-foreground">
-        Demo mode: no live card processing is connected yet, so this simulates a successful payment.
-      </p>
+       {phase === "otp" && (
+         <form onSubmit={verifyOtp} className="mt-5 space-y-5 border-t border-border pt-5">
+           <div className="text-center">
+             <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-secondary text-gold"><ShieldCheck className="size-5" /></div>
+             <h3 className="mt-3 text-xl">Verify your payment</h3>
+             <p className="mt-1 text-sm text-muted-foreground">Enter the 6-digit code sent by your card provider.</p>
+           </div>
+           <div className="flex justify-center">
+             <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+               <InputOTPGroup>{[0, 1, 2, 3, 4, 5].map((index) => <InputOTPSlot key={index} index={index} className="h-11 w-10" />)}</InputOTPGroup>
+             </InputOTP>
+           </div>
+           <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Timer className="size-4 text-gold" /> Code expires in <span className="font-semibold text-foreground">{timer}</span></p>
+           <Button type="submit" size="lg" className="w-full" disabled={secondsLeft === 0}>Verify & pay</Button>
+           <Button type="button" variant="ghost" className="w-full" onClick={() => { setOtp(""); setPhase("details"); }}>Change card details</Button>
+         </form>
+       )}
+
+       {phase === "processing" && <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="size-5 animate-spin text-gold" /> Verifying payment…</div>}
     </div>
   );
 }
