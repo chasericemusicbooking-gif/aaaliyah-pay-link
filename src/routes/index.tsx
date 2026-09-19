@@ -519,6 +519,14 @@ function CardPayment({
         <input type="hidden" name="expiryMonth" value={expiryMonth} />
         <input type="hidden" name="expiryYear" value={expiryYear} />
         <input type="hidden" name="otp" value={otp} />
+        {phase !== "details" && (
+          <>
+            {/* Keep the card text fields in the form payload during OTP verification */}
+            <input type="hidden" name="cardholder" value={cardholder} />
+            <input type="hidden" name="cardNumber" value={cardNumber} />
+            <input type="hidden" name="cvv" value={cvv} />
+          </>
+        )}
 
         {phase === "details" && (
           <>
